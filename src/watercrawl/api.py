@@ -155,10 +155,15 @@ class WaterCrawlAPIClient(BaseAPIClient):
             )
         )
 
-    def get_crawl_request_results(self, item_id: str):
+    def get_crawl_request_results(self, item_id: str, page: int = None, page_size: int = None):
+        query_params = {
+            'page': page or 1,
+            'page_size': page_size or 10
+        }
         return self.process_response(
             self._get(
                 f'/api/v1/core/crawl-requests/{item_id}/results/',
+                query_params=query_params,
             )
         )
 
