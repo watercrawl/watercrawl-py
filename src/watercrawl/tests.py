@@ -31,7 +31,7 @@ class TestWaterCrawlAPI(unittest.TestCase):
     def test_download_crawl_request(self):
         result = self.api.get_crawl_requests_list()
         response = self.api.download_crawl_request(result['results'][0]['uuid'])
-        self.assertIsInstance(response, list)
+        self.assertIsInstance(response, bytes)
 
     def test_monitor_crawl_request(self):
         result = self.api.create_crawl_request(url='https://watercrawl.dev')

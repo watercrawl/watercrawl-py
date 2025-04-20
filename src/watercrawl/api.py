@@ -82,6 +82,9 @@ class WaterCrawlAPIClient(BaseAPIClient):
 
         if response.headers.get('Content-Type') == 'text/event-stream':
             return self.process_eventstream(response)
+        
+        if response.headers.get('Content-Type') == 'application/zip':
+            return response.content
 
         raise Exception(f'Unknown response type: {response.headers.get("Content-Type")}')
 
@@ -192,7 +195,7 @@ class WaterCrawlAPIClient(BaseAPIClient):
         result_object['result'] = response.json()
         return result_object
     
-    def __get_crawl_request_for_sitemap(self, crawl_request: str | dict) -> bytes:
+    def __get_crawl_request_for_sitemap(self, crawl_request: str or dict) -> dict:
         if isinstance(crawl_request, str):
             crawl_request = self.get_crawl_request(crawl_request)
             
@@ -201,7 +204,7 @@ class WaterCrawlAPIClient(BaseAPIClient):
         
         return crawl_request
 
-    def download_sitemap(self, crawl_request: str | dict) -> bytes:
+    def download_sitemap(self, crawl_request: str or dict) -> bytes:
         """
         Download the sitemap for a given crawl request.
         it can be a string or crawl request object
@@ -212,7 +215,7 @@ class WaterCrawlAPIClient(BaseAPIClient):
         response.raise_for_status()
         return response.json()
     
-    def download_sitemap_graph(self, crawl_request: str | dict) -> bytes:
+    def download_sitemap_graph(self, crawl_request: str or dict) -> bytes:
         crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
         
         return self.process_response(
@@ -221,7 +224,7 @@ class WaterCrawlAPIClient(BaseAPIClient):
             )
         )
         
-    def download_sitemap_markdown(self, crawl_request: str | dict) -> bytes:
+    def download_sitemap_markdown(self, crawl_request: str or dict) -> bytes:
         crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
         
         return self.process_response(
