@@ -28,5 +28,7 @@ jobs:
         pip install -e .
         
     - name: Run tests
+      env:
+        WATERCRAWL_API_KEY: ${{ secrets.WATERCRAWL_API_KEY }}
       run: |
         pytest src/watercrawl/tests.py
