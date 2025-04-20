@@ -54,3 +54,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - None
+
+## [0.6.1] - 2025-04-20
+
+### Added
+- Added support for specifying `page_number` and `page_size` parameters to results endpoints for improved pagination and control over result sets.
+
+### Changed
+- None
+
+### Deprecated
+- None
+
+### Removed
+- None
+
+### Fixed
+- None
+
+### Security
+- None
