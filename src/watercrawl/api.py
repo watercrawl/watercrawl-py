@@ -1,6 +1,7 @@
 import json
 from typing import Union, Generator
 from urllib.parse import urljoin
+import warnings
 
 import requests
 from requests import Response
@@ -67,11 +68,9 @@ class WaterCrawlAPIClient(BaseAPIClient):
             if line.startswith('data:'):
                 line = line[5:].strip()
                 data = json.loads(line)
-                if data['type'] == 'result' and download:
-                    data['data'] = self.download_result(data['data'])
                 yield data
 
-    def process_response(self, response: Response, download: bool = False) -> Union[dict, bytes, list, None, Generator]:
+    def process_response(self, response: Response) -> Union[dict, bytes, list, None, Generator]:
         response.raise_for_status()
         if response.status_code == 204:
             return None
@@ -82,7 +81,7 @@ class WaterCrawlAPIClient(BaseAPIClient):
             return response.content
 
         if response.headers.get('Content-Type') == 'text/event-stream':
-            return self.process_eventstream(response, download)
+            return self.process_eventstream(response)
 
         raise Exception(f'Unknown response type: {response.headers.get("Content-Type")}')
 
@@ -146,9 +145,11 @@ class WaterCrawlAPIClient(BaseAPIClient):
         return self.process_response(
             self._get(
                 f'/api/v1/core/crawl-requests/{item_id}/status/',
-                stream=True
-            ),
-            download
+                stream=True,
+                query_params={
+                    'prefetched': download
+                }
+            )
         )
 
     def get_crawl_request_results(self, item_id: str):
@@ -178,7 +179,53 @@ class WaterCrawlAPIClient(BaseAPIClient):
                 return result['data']
 
     def download_result(self, result_object: dict):
+        """[DEPRECATED] Download and parse the result object if necessary. Will be removed in a future version."""
+        warnings.warn(
+            "download_result is deprecated and will be removed in a future version.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if isinstance(result_object['result'], dict):
+            return result_object
         response = requests.get(result_object['result'])
         response.raise_for_status()
         result_object['result'] = response.json()
         return result_object
+    
+    def __get_crawl_request_for_sitemap(self, crawl_request: str | dict) -> bytes:
+        if isinstance(crawl_request, str):
+            crawl_request = self.get_crawl_request(crawl_request)
+            
+        if 'sitemap' not in crawl_request:
+            raise ValueError('Sitemap not found in crawl request')
+        
+        return crawl_request
+
+    def download_sitemap(self, crawl_request: str | dict) -> bytes:
+        """
+        Download the sitemap for a given crawl request.
+        it can be a string or crawl request object
+        """
+        crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
+        
+        response = requests.get(crawl_request['sitemap'])
+        response.raise_for_status()
+        return response.json()
+    
+    def download_sitemap_graph(self, crawl_request: str | dict) -> bytes:
+        crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
+        
+        return self.process_response(
+            self._get(
+                f'/api/v1/core/crawl-requests/{crawl_request["uuid"]}/sitemap/graph/',
+            )
+        )
+        
+    def download_sitemap_markdown(self, crawl_request: str | dict) -> bytes:
+        crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
+        
+        return self.process_response(
+            self._get(
+                f'/api/v1/core/crawl-requests/{crawl_request["uuid"]}/sitemap/markdown/',
+            )
+        )

@@ -32,3 +32,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - Basic API key authentication
 - Secure request handling with HTTPS
+
+## [0.6.0] - 2025-04-20
+
+### Added
+- New methods: `download_sitemap`, `download_sitemap_graph`, and `download_sitemap_markdown` for retrieving various sitemap formats and representations from a crawl request.
+- Helper method `__get_crawl_request_for_sitemap` for internal crawl request validation and normalization.
+- Unit tests for all new sitemap-related methods and error handling.
+
+### Changed
+- None
+
+### Deprecated
+- Marked `download_result` as deprecated. A deprecation warning is now shown when this method is used and the docstring has been updated to reflect its deprecation status.
+
+### Removed
+- None
+
+### Fixed
+- None
+
+### Security
+- None
