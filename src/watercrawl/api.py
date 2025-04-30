@@ -6,7 +6,6 @@ import warnings
 import requests
 from requests import Response
 
-
 class BaseAPIClient:
     def __init__(self, api_key, base_url):
         self.api_key = api_key
@@ -62,7 +61,7 @@ class WaterCrawlAPIClient(BaseAPIClient):
     def __init__(self, api_key, base_url: str = 'https://app.watercrawl.dev/'):
         super().__init__(api_key, base_url)
 
-    def process_eventstream(self, response: Response, download: bool = False):
+    def process_eventstream(self, response: Response):
         for line in response.iter_lines():
             line = line.decode('utf-8')
             if line.startswith('data:'):
@@ -82,7 +81,7 @@ class WaterCrawlAPIClient(BaseAPIClient):
 
         if response.headers.get('Content-Type') == 'text/event-stream':
             return self.process_eventstream(response)
-        
+
         if response.headers.get('Content-Type') == 'application/zip':
             return response.content
 
@@ -199,41 +198,205 @@ class WaterCrawlAPIClient(BaseAPIClient):
         response.raise_for_status()
         result_object['result'] = response.json()
         return result_object
-    
-    def __get_crawl_request_for_sitemap(self, crawl_request: str or dict) -> dict:
+
+    def __get_crawl_request_for_sitemap(self, crawl_request: Union[str, dict]) -> dict:
         if isinstance(crawl_request, str):
             crawl_request = self.get_crawl_request(crawl_request)
-            
+
         if 'sitemap' not in crawl_request:
             raise ValueError('Sitemap not found in crawl request')
-        
+
         return crawl_request
 
-    def download_sitemap(self, crawl_request: str or dict) -> bytes:
+    def download_sitemap(self, crawl_request: Union[str, dict]) -> dict:
         """
         Download the sitemap for a given crawl request.
-        it can be a string or crawl request object
+        
+        Args:
+            crawl_request: Either a crawl request UUID string or a crawl request object
+            
+        Returns:
+            The sitemap data as a dictionary or list
+            
+        Raises:
+            ValueError: If the sitemap is not found in the crawl request
+            HTTPError: If there's an error fetching the sitemap
         """
         crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
-        
+
         response = requests.get(crawl_request['sitemap'])
         response.raise_for_status()
         return response.json()
-    
-    def download_sitemap_graph(self, crawl_request: str or dict) -> bytes:
-        crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
+
+    def download_sitemap_graph(self, crawl_request: Union[str, dict]) -> bytes:
+        """
+        Download the sitemap as a graph representation for visualization.
         
+        Args:
+            crawl_request: Either a crawl request UUID string or a crawl request object
+            
+        Returns:
+            The sitemap graph data
+            
+        Raises:
+            ValueError: If the sitemap is not found in the crawl request
+            HTTPError: If there's an error fetching the sitemap graph
+        """
+        crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
+
         return self.process_response(
             self._get(
                 f'/api/v1/core/crawl-requests/{crawl_request["uuid"]}/sitemap/graph/',
             )
         )
+
+    def download_sitemap_markdown(self, crawl_request: Union[str, dict]) -> bytes:
+        """
+        Download the sitemap as a markdown document.
         
-    def download_sitemap_markdown(self, crawl_request: str or dict) -> bytes:
+        Args:
+            crawl_request: Either a crawl request UUID string or a crawl request object
+            
+        Returns:
+            The sitemap as markdown content
+            
+        Raises:
+            ValueError: If the sitemap is not found in the crawl request
+            HTTPError: If there's an error fetching the sitemap markdown
+        """
         crawl_request = self.__get_crawl_request_for_sitemap(crawl_request)
-        
+
         return self.process_response(
             self._get(
                 f'/api/v1/core/crawl-requests/{crawl_request["uuid"]}/sitemap/markdown/',
+            )
+        )
+
+    def get_search_requests_list(self, page: int = None, page_size: int = None) -> dict:
+        """
+        Get a paginated list of search requests.
+        
+        Args:
+            page: Page number (1-indexed, default: 1)
+            page_size: Number of items per page (default: 10)
+            
+        Returns:
+            Dictionary containing paginated search requests
+        """
+        query_params = {
+            'page': page or 1,
+            'page_size': page_size or 10
+        }
+        return self.process_response(
+            self._get(
+                '/api/v1/core/search/',
+                query_params=query_params,
+            )
+        )
+
+    
+    def get_search_request(self, item_id: str, download: bool = False) -> dict:
+        """
+        Get details of a specific search request.
+        
+        Args:
+            item_id: UUID of the search request
+            
+        Returns:
+            Dictionary containing search request details
+        """
+        return self.process_response(
+            self._get(
+                f'/api/v1/core/search/{item_id}/',
+                query_params={
+                    'prefetched': download
+                }
+            )
+        )
+
+
+    def create_search_request(self, query: str, search_options: dict = None, result_limit: int = 5, sync: bool = True,
+                              download: bool = True) -> Union[dict, Generator]:
+        """
+        Create a new search request.
+        
+        Args:
+            query: Search query string
+            search_options: Dictionary of search options
+                - language: Language code (e.g., "en", "fr")
+                - country: Country code (e.g., "us", "fr")
+                - time_range: Time range filter (e.g., "any", "hour", "day", "week", "month", "year")
+                - search_type: Type of search (e.g., "web")
+                - depth: Search depth (e.g., "basic", "advanced", "ultimate")
+            result_limit: Maximum number of results to return
+            sync: If True, wait for results; if False, return immediately
+            download: If True, download results; if False, return URLs
+            
+        Returns:
+            If sync=True: Complete search results
+            If sync=False: Search request object with UUID for monitoring
+            
+        Raises:
+            Exception: If the search request fails
+        """
+        response = self.process_response(
+            self._post(
+                '/api/v1/core/search/',
+                data={
+                    'query': query,
+                    'search_options': search_options or {},
+                    'result_limit': result_limit
+                }
+            )
+        )
+
+        if not sync:
+            return response
+
+        for result in self.monitor_search_request(response['uuid'], download):
+            if result['type'] == 'state' and result['status'] in ["finished", "failed"]:
+                return result['data']
+
+        raise Exception('Search request failed')
+
+
+    def monitor_search_request(self, item_id: str, download=True) -> Generator:
+        """
+        Monitor a search request in real-time.
+        
+        Args:
+            item_id: UUID of the search request to monitor
+            download: If True, download results; if False, return URLs
+            
+        Returns:
+            Generator yielding search events
+            
+        Yields:
+            Dictionary containing event type and data
+        """
+        return self.process_response(
+            self._get(
+                f'/api/v1/core/search/{item_id}/status/',
+                stream=True,
+                query_params={
+                    'prefetched': download
+                }
+            )
+        )
+
+
+    def stop_search_request(self, item_id: str) -> None:
+        """
+        Stop a running search request.
+        
+        Args:
+            item_id: UUID of the search request to stop
+            
+        Returns:
+            None
+        """
+        return self.process_response(
+            self._delete(
+                f'/api/v1/core/search/{item_id}/',
             )
         )
