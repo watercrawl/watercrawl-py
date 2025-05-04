@@ -354,7 +354,7 @@ class WaterCrawlAPIClient(BaseAPIClient):
             return response
 
         for result in self.monitor_search_request(response['uuid'], download):
-            if result['type'] == 'state' and result['status'] in ["finished", "failed"]:
+            if result['type'] == 'state' and result['data']['status'] in ["finished", "failed"]:
                 return result['data']
 
         raise Exception('Search request failed')

@@ -279,8 +279,6 @@ class TestWaterCrawlAPI(unittest.TestCase):
             error_msg = self.handle_api_error(e, "create_search_request")
             self.fail(error_msg)
         
-        # Skip the sync test as it might be timing out or having issues
-        """
         # Test sync mode with a small result limit to be faster
         logger.info("Testing create_search_request in sync mode")
         sync_response = self.api.create_search_request(
@@ -290,8 +288,7 @@ class TestWaterCrawlAPI(unittest.TestCase):
         )
         logger.info(f"Sync Search Request Result: {sync_response}")
         self.assertIsInstance(sync_response, dict)
-        """
-    
+
     def test_monitor_search_request(self):
         # Create a search request to monitor
         try:
