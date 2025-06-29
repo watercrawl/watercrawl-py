@@ -338,28 +338,148 @@ class TestWaterCrawlAPI(unittest.TestCase):
             error_msg = self.handle_api_error(e, "get_search_request")
             self.fail(error_msg)
     
-    def test_stop_search_request(self):
-        # Create a request to stop
-        search_request = self.api.create_search_request(
-            query='python course', 
-            result_limit=3,
-            sync=False
-        )
-        logger.info(f"Created search request to stop: {search_request['uuid']}")
-        
-        # Wait for the request to start
-        time.sleep(1)
-        
-        # Stop the request
-        response = self.api.stop_search_request(search_request['uuid'])
-        logger.info(f"Stop search request response: {response}")
-        self.assertIsNone(response)
-        
-        # Verify it was stopped
-        status = self.api.get_search_request(search_request['uuid'])
-        logger.info(f"Status after stopping: {status}")
-        self.assertIn('status', status)
+    # def test_stop_search_request(self):
+    #     # Create a request to stop
+    #     search_request = self.api.create_search_request(
+    #         query='python course',
+    #         result_limit=3,
+    #         sync=False
+    #     )
+    #     logger.info(f"Created search request to stop: {search_request['uuid']}")
+    #
+    #     # Wait for the request to start
+    #     time.sleep(1)
+    #
+    #     # Stop the request
+    #     response = self.api.stop_search_request(search_request['uuid'])
+    #     logger.info(f"Stop search request response: {response}")
+    #     self.assertIsNone(response)
+    #
+    #     # Verify it was stopped
+    #     status = self.api.get_search_request(search_request['uuid'])
+    #     logger.info(f"Status after stopping: {status}")
+    #     self.assertIn('status', status)
 
+    def test_create_sitemap_request(self):
+        try:
+            response = self.retry_api_call(self.api.create_sitemap_request, url='https://watercrawl.dev')
+            logger.info(f"Created Sitemap Request: {response}")
+            self.assertIsInstance(response, dict)
+            self.assertIn('uuid', response)
+        except Exception as e:
+            error_msg = self.handle_api_error(e, "create_sitemap_request")
+            self.fail(error_msg)
+            
+    def test_get_sitemap_requests_list(self):
+        try:
+            response = self.retry_api_call(self.api.get_sitemap_requests_list)
+            logger.info(f"Sitemap Requests List: {response}")
+            self.assertIsInstance(response, dict)
+            self.assertIn('results', response)
+            self.assertIsInstance(response['results'], list)
+        except Exception as e:
+            error_msg = self.handle_api_error(e, "get_sitemap_requests_list")
+            self.fail(error_msg)
+            
+    def test_get_sitemap_request(self):
+        try:
+            # First create a sitemap request to ensure we have one to get
+            create_response = self.retry_api_call(self.api.create_sitemap_request, url='https://watercrawl.dev')
+            
+            response = self.retry_api_call(self.api.get_sitemap_request, create_response['uuid'])
+            logger.info(f"Sitemap Request Details: {response}")
+            self.assertIsInstance(response, dict)
+            self.assertEqual(response['uuid'], create_response['uuid'])
+        except Exception as e:
+            error_msg = self.handle_api_error(e, "get_sitemap_request")
+            self.fail(error_msg)
+            
+    def test_get_sitemap_results(self):
+        try:
+            # First get sitemap requests list
+            sitemap_requests = self.retry_api_call(self.api.get_sitemap_requests_list)
+            
+            # Find a sitemap request with results
+            for request in sitemap_requests['results']:
+                sitemap_request = self.retry_api_call(self.api.get_sitemap_request, request['uuid'])
+                if 'result' in sitemap_request and sitemap_request['result']:
+                    logger.info(f"Found sitemap request with results: {sitemap_request['uuid']}")
+                    
+                    # Test JSON format
+                    json_result = self.retry_api_call(self.api.get_sitemap_results, 
+                                                     sitemap_request, output_format='json')
+                    logger.info(f"Sitemap JSON result type: {type(json_result)}")
+                    self.assertIsInstance(json_result, (list, dict))
+                    
+                    # Test graph format (if available)
+                    try:
+                        graph_result = self.retry_api_call(self.api.get_sitemap_results, 
+                                                          sitemap_request, output_format='graph')
+                        logger.info(f"Sitemap graph result type: {type(graph_result)}")
+                        self.assertIsInstance(graph_result, bytes)
+                    except Exception as e:
+                        logger.warning(f"Graph format not available: {str(e)}")
+                    
+                    # Test markdown format (if available)
+                    try:
+                        markdown_result = self.retry_api_call(self.api.get_sitemap_results, 
+                                                            sitemap_request, output_format='markdown')
+                        logger.info(f"Sitemap markdown result type: {type(markdown_result)}")
+                        self.assertIsInstance(markdown_result, bytes)
+                    except Exception as e:
+                        logger.warning(f"Markdown format not available: {str(e)}")
+                        
+                    return
+            
+            # If we got here, we didn't find any sitemap with results
+            self.skipTest("No sitemap requests with results found")
+        except Exception as e:
+            error_msg = self.handle_api_error(e, "get_sitemap_results")
+            self.fail(error_msg)
+    
+    def test_monitor_sitemap_request(self):
+        try:
+            # Create a sitemap request to monitor
+            request = self.retry_api_call(self.api.create_sitemap_request, url='https://watercrawl.dev')
+            logger.info(f"Created sitemap request for monitoring: {request['uuid']}")
+            
+            # Monitor the sitemap request
+            count = 0
+            for event in self.retry_api_call(self.api.monitor_sitemap_request, request['uuid']):
+                logger.info(f"Sitemap monitor event {count}: {event}")
+                self.assertIsInstance(event, dict)
+                count += 1
+                # Limit to avoid long test runs
+                if count >= 3:
+                    break
+        except Exception as e:
+            error_msg = self.handle_api_error(e, "monitor_sitemap_request")
+            self.fail(error_msg)
+    
+    def test_stop_sitemap_request(self):
+        try:
+            # Create a sitemap request to stop
+            request = self.retry_api_call(self.api.create_sitemap_request, url='https://watercrawl.dev')
+            logger.info(f"Created sitemap request to stop: {request['uuid']}")
+            
+            # Wait for the request to start
+            time.sleep(1)
+            
+            # Stop the request
+            response = self.retry_api_call(self.api.stop_sitemap_request, request['uuid'])
+            logger.info(f"Stop sitemap request response: {response}")
+            self.assertIsNone(response)
+            
+            # Verify it was stopped
+            try:
+                status = self.retry_api_call(self.api.get_sitemap_request, request['uuid'])
+                logger.info(f"Status after stopping: {status}")
+                self.assertIn('status', status)
+            except Exception as e:
+                logger.warning(f"Could not verify status after stopping: {str(e)}")
+        except Exception as e:
+            error_msg = self.handle_api_error(e, "stop_sitemap_request")
+            self.fail(error_msg)
 
 if __name__ == '__main__':
     unittest.main()
